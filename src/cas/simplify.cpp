@@ -83,7 +83,7 @@ namespace cas {
 			//
 			// Also check if there are more things, making an empty add/mul is a bad idea as the adopter will
 			// fix that
-			if (e.params.size() > 1 && std::abs(constant_value - (is_mul(e) ? 1 : 0)) < std::numeric_limits<double>::epsilon()) {
+			if (e.params.size() >= 1 && std::abs(constant_value - (is_mul(e) ? 1 : 0)) < std::numeric_limits<double>::epsilon()) {
 				return modifications; // Do not re-add the constant, as it a no-op
 			}
 			else {
