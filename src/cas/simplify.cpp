@@ -1,13 +1,20 @@
 #include "simplify.h"
 #include "op.h"
+#include "polynomial.h"
 #include <algorithm>
+#include <iostream>
 #include <map>
 #include <set>
 
 namespace cas {
 	void simplify(expr &f) {
+		while (for_all_expr(f, [&](auto &e){return simpl::collect_constants(e) || 
+			                                   simpl::flatten(e) ||           simpl::reorganize_constants(e);
+						   })) {;}
 		while (for_all_expr(f, [&](auto &e){return simpl::collect_constants(e) || simpl::collect_distributive(e) ||
-			                                   simpl::flatten(e) ||           simpl::reorganize_constants(e);})) {;}
+			                                   simpl::flatten(e) ||           simpl::reorganize_constants(e) ||
+							   simpl::coalesce_operands(e) || simpl::sub_identities(e);
+						   })) {;}
 	}
 
 	namespace simpl {
@@ -49,6 +56,7 @@ namespace cas {
 
 			int modifications = 0;
 			double constant_value = is_mul(e) ? 1 : 0;
+			auto marker = e.params.begin();
 			
 			if ((modifications += std::count_if(e.params.begin(), e.params.end(), [&](auto &f){
 				if (is_num(f)) {
@@ -62,6 +70,7 @@ namespace cas {
 				for (auto i = e.params.begin(); i != e.params.end();) {
 					if (is_num(*i)) {
 						i = e.params.erase(i);
+						marker = i;
 					}
 					else {
 						++i;
@@ -71,12 +80,15 @@ namespace cas {
 
 			// Is constant_value equal to 1 (or 0 for add)?
 			// (accounts for rounding error)
-			if ((constant_value - (is_mul(e) ? 1 : 0)) < std::numeric_limits<double>::epsilon()) {
+			//
+			// Also check if there are more things, making an empty add/mul is a bad idea as the adopter will
+			// fix that
+			if (e.params.size() > 1 && std::abs(constant_value - (is_mul(e) ? 1 : 0)) < std::numeric_limits<double>::epsilon()) {
 				return modifications; // Do not re-add the constant, as it a no-op
 			}
 			else {
 				if (modifications == 1) modifications = 0; // Avoid infinite loop, but still allow above condition to fire
-				e.params.push_front(constant_value);
+				e.params.insert(marker, constant_value);
 				return modifications;
 			}
 		}
@@ -113,7 +125,11 @@ namespace cas {
 			std::set<expr> unique_check{};
 
 			for (auto i = e.params.begin(); i != e.params.end(); ++i) {
-				if (!is_mul(*i) || i->params.size() == 1) continue;
+				if (is_mul(*i) && i->params.size() == 1) continue;
+				if (!is_mul(*i)) {
+					candidates[*i].push_back(i);
+					continue;
+				}
 				// Make sure the multiplcands are unique, otherwise this creates problems with the algorithm.
 				// These will be taken care of in another function and converted to powers, which are fine in this system
 				unique_check.clear();
@@ -170,6 +186,11 @@ bad:
 
 				// Go through each position in i.second, remove the reference to expr 
 				for (auto j : i->second) {
+					if (!is_mul(*j)) {
+						adder.params.push_back(1.0);
+						e.params.erase(j);
+						continue;
+					}
 					for (auto k = j->params.begin(); k != j->params.end();) {
 						if (*k == i->first) k = j->params.erase(k);
 						else ++k;
@@ -187,7 +208,67 @@ bad:
 
 		int reorganize_constants(expr &e) {
 			// todo: reorg by degree (also impl degree( function in polynomials
-			return 0;
+			if (!(is_mul(e) || is_add(e))) return 0;
+			auto compare = [](const expr &a, const expr &b){
+				return std::make_tuple(polynomial::degree(a), a.strvalue) < std::make_tuple(polynomial::degree(b), b.strvalue);
+			};
+
+			if (std::is_sorted(e.params.begin(), e.params.end(), compare)) return 0;
+			e.params.sort(compare);
+			return 1;
+		}
+
+		int coalesce_operands(expr &e) {
+			if (!(is_mul(e))) return 0;
+
+			// Coalesce operands, e.g.:
+			//
+			// x * x = x^2
+			
+			std::map<expr, double> counts{};
+			int modifications = 0;
+			for (auto &i : e.params) {
+				if (is_pow(i) && is_num(i.rhs())) counts[i] += i.rhs().value;
+				else ++counts[i];
+			}
+
+			while (!counts.empty()) {
+				auto i = std::max_element(counts.begin(), counts.end(), [](auto &a, auto &b){return a.second < b.second;});
+
+				if (i->second == 1) break;
+
+				++modifications;
+				e.params.remove(i->first); // Why didn't I check the docs for this first? lol
+				e.params.push_back(op::raiseto (i->first, expr(i->second)));
+
+				counts.erase(i);
+			}
+
+			return modifications;
+		}
+
+		int sub_identities(expr &e) {
+			int modifications = 0;
+			switch (e.etype) {
+				case expr_type::pow:
+					if (is_pow(e.lhs())) {
+						e = op::raiseto(e.lhs().lhs(), op::multiply(e.lhs().rhs(), e.rhs()));
+						++modifications;
+					}
+					if (is_num(e.rhs())) {
+						if (e.rhs().value == 0.0) { e = 1.0; ++modifications; }
+						if (e.rhs().value == 1.0) { e = e.lhs(); ++ modifications; }
+					}
+					break;
+				case expr_type::mul:
+					if (is_num(e.lhs())) {
+						if (e.lhs().value == 0.0) { e = 0.0; ++modifications; }
+					}
+					break;
+				default:
+					break;
+			}
+			return modifications;
 		}
 	}
 }

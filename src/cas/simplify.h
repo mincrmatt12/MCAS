@@ -26,6 +26,22 @@ namespace cas {
 		//
 		// numbers first, then constants, then vars in alph order, then whatever else
 		int reorganize_constants(expr &e);
+
+		// Coalesce operands
+		//
+		// Like distributive, but for singular expressions
+		int coalesce_operands(expr &e);
+
+		// Identities
+		//
+		// Like (anything)^1 = (anything)
+		// or ^0 = 1
+		//
+		// Or 0*asdf = whatever
+		//
+		// Might add function identities here as well, or mightplace them in 
+		// different functions.
+		int sub_identities(expr &e);
 	}
 }
 
