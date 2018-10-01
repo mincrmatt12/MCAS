@@ -67,6 +67,15 @@ number:
 				cursor += std::get<1>(second);
 				return {cas::op::raiseto(std::get<0>(first), std::get<0>(second)), cursor};
 			}
+		case '=':
+			{
+				std::size_t cursor = 2;
+				auto first = parse_internal(s.substr(cursor));
+				cursor += std::get<1>(first) + 1;
+				auto second = parse_internal(s.substr(cursor));
+				cursor += std::get<1>(second);
+				return {cas::expr(cas::expr_type::equal, std::get<0>(first), std::get<0>(second)), cursor};
+			}
 		default:
 			{
 				// todo: functions

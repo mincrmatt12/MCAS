@@ -15,7 +15,7 @@
 namespace cas {
 
 #define CAS_ENUM_EXPRESSIONS(o) \
-	o(add) o(mul) o(pow) \
+	o(add) o(mul) o(pow) o(equal) \
 	o(num) o(var) o(func) o(none) o(constant)
 
 #define o(n) n,
@@ -87,6 +87,24 @@ namespace cas {
 	bool for_all_expr(expr& e, Func &&f) {
 		return call_v(f, e) || std::any_of(e.params.begin(), e.params.end(), [&](auto &ee){return for_all_expr(ee, f);});
 	}
+
+	// Evaluate the expression. (simplify does this if it can be sure it will be integers, this function evaluates 
+	// and can return a fractional value)
+	double eval(const expr& e);
+	
+	// Substitude an expression into another. 
+	//
+	// s should be an equals with the left hand side being something to replace.
+	//
+	// e.g.:
+	//
+	// e: (x+2)
+	// s: (x=2)
+	// |
+	// e: (2+2)
+	//
+	// You should probably run simplify on e after this function is done.
+	void substitude(expr& e, const expr& s);
 }
 
 #endif

@@ -5,6 +5,8 @@
 #include <iostream>
 #include <map>
 #include <set>
+#include <numeric>
+#include <cmath>
 
 namespace cas {
 	void simplify(expr &f) {
@@ -46,12 +48,27 @@ namespace cas {
 					++i;
 				}
 			}
+			if (modifications > 0) std::cout << "flattened " << modifications << std::endl;
 
 			return modifications;
 		}
 
 		int collect_constants(expr &e) {
-			// Only runs on add/mul
+			// Only runs on add/mul/pow
+			if (is_pow(e)) {
+				// Powers are evaluated if and only if:
+				// - the operand is a num
+				// - the power is a num
+				// - result is an integer
+				if (is_num(e.lhs()) && is_num(e.rhs())) {
+					double result = std::pow(e.lhs().value, e.rhs().value);
+					if (std::trunc(result) == result) { // Is the result an integer (truncate == result)
+						e = result;
+						return 1;
+					}
+				}
+				return 0;
+			}
 			if (!(is_mul(e) || is_add(e))) return 0;
 
 			int modifications = 0;
@@ -83,6 +100,7 @@ namespace cas {
 			//
 			// Also check if there are more things, making an empty add/mul is a bad idea as the adopter will
 			// fix that
+			if (modifications > 0) std::cout << "folded " << modifications << " constants." << std::endl;
 			if (e.params.size() >= 1 && std::abs(constant_value - (is_mul(e) ? 1 : 0)) < std::numeric_limits<double>::epsilon()) {
 				return modifications; // Do not re-add the constant, as it a no-op
 			}
@@ -203,6 +221,7 @@ bad:
 				++modifications;
 				candidates.erase(i->first);
 			}
+			if (modifications > 0) std::cout << "distributed " << modifications << " terms." << std::endl;
 			return modifications;
 		}
 
@@ -215,6 +234,7 @@ bad:
 
 			if (std::is_sorted(e.params.begin(), e.params.end(), compare)) return 0;
 			e.params.sort(compare);
+			std::cout << "reorganized" << std::endl;
 			return 1;
 		}
 
@@ -225,11 +245,13 @@ bad:
 			//
 			// x * x = x^2
 			
-			std::map<expr, double> counts{};
+			std::map<expr, double> values{};
+			std::map<expr, std::size_t> counts{};
 			int modifications = 0;
 			for (auto &i : e.params) {
-				if (is_pow(i) && is_num(i.rhs())) counts[i] += i.rhs().value;
-				else ++counts[i];
+				if (is_pow(i) && is_num(i.rhs())) values[i] += i.rhs().value;
+				else ++values[i];
+				++counts[i];
 			}
 
 			while (!counts.empty()) {
@@ -239,10 +261,11 @@ bad:
 
 				++modifications;
 				e.params.remove(i->first); // Why didn't I check the docs for this first? lol
-				e.params.push_back(op::raiseto (i->first, expr(i->second)));
+				e.params.push_back(op::raiseto (i->first, expr(values[i->first])));
 
 				counts.erase(i);
 			}
+			std::cout << "coalesced " << modifications << std::endl;
 
 			return modifications;
 		}
@@ -268,6 +291,7 @@ bad:
 				default:
 					break;
 			}
+			std::cout << "substituded identities * " << modifications << std::endl;
 			return modifications;
 		}
 	}

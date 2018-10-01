@@ -59,6 +59,10 @@ static void display(const cas::expr &e) {
 			}
 			std::cout << ")";
 			break;
+		case cas::expr_type::equal:
+			display(e.lhs());
+			std::cout << " = ";
+			display(e.rhs());
 		default:
 			std::cout << "<unk>";
 			break;
