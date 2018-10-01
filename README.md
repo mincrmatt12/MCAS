@@ -22,4 +22,17 @@ Ran from the `cas::simplify` method, specific techniques are in `cas::simpl`. Do
 
 ### Solving
 
-(todo)
+Plan is to first make sure vars are on the right side of the equation, then do a BFS for the offending variable.
+Keep drilling down, removing operations on both sides, using simplify heavily.
+
+E.G:
+
+```
+  +
+ + 3  
+2 x
+```
+
+Would select the right then left to reverse, causing -3 and -2 to be added to both sides. After running `cas::simplfy` this should be a simple expression.
+
+(todo: formatting)
