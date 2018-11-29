@@ -10,13 +10,9 @@
 
 namespace cas {
 	void simplify(expr &f) {
-		while (for_all_expr(f, [&](auto &e){return simpl::collect_constants(e) || 
-			                                   simpl::flatten(e) ||           simpl::reorganize_constants(e);
-						   })) {;}
-		while (for_all_expr(f, [&](auto &e){return simpl::collect_constants(e) || simpl::collect_distributive(e) ||
-			                                   simpl::flatten(e) ||           simpl::reorganize_constants(e) ||
-							   simpl::coalesce_operands(e) || simpl::sub_identities(e);
-						   })) {;}
+		simplify_with_techniques(f, simpl::collect_constants, simpl::flatten, simpl::reorganize_constants);
+		simplify_with_techniques(f, simpl::collect_constants,  simpl::collect_distributive, simpl::flatten, simpl::reorganize_constants, 
+					    simpl::coalesce_operands,  simpl::sub_identities);
 	}
 
 	namespace simpl {
@@ -119,7 +115,7 @@ namespace cas {
 			//
 			// E.g.
 			//
-			// ac + ad + bc + bd + bdd
+			// ac + ad + bc + bd
 			// =
 			// <1> + <2> + <3> + <4>
 			// a: <1>, <2>
@@ -145,10 +141,10 @@ namespace cas {
 			for (auto i = e.params.begin(); i != e.params.end(); ++i) {
 				if (is_mul(*i) && i->params.size() == 1) continue;
 				if (!is_mul(*i)) {
-					candidates[*i].push_back(i);
+					if (!is_num(*i)) candidates[*i].push_back(i);
 					continue;
 				}
-				// Make sure the multiplcands are unique, otherwise this creates problems with the algorithm.
+				// Make sure the multiplicands are unique, otherwise this creates problems with the algorithm.
 				// These will be taken care of in another function and converted to powers, which are fine in this system
 				unique_check.clear();
 				for (auto &f : i->params) {
@@ -159,7 +155,7 @@ namespace cas {
 
 				// Categorize based on all multiplicands (assume flattened tree structure by now hopefully)
 				for (auto &f : i->params) {
-					candidates[f].push_back(i);
+					if (!is_num(f)) candidates[f].push_back(i);
 				}
 bad:
 				continue;

@@ -6,7 +6,24 @@
 #include "expr.h"
 
 namespace cas {
-	void simplify(expr& e);		
+	void simplify(expr& e);
+
+	namespace {
+		template <typename ...V>
+		struct all_exprs_callable {
+			static constexpr bool v = (std::is_invocable_v<V, expr &> && ...);
+		};
+
+		template<typename ...F>
+		bool call_f(expr &e, F&&... f) {
+			return (f(e) || ...);	
+		}
+	}
+
+	template<typename ...T>
+	auto simplify_with_techniques(expr& f, T&&... funcs) -> decltype((void)all_exprs_callable<T...>::v, void()) {
+		while (for_all_expr(f, [&](auto &e){return call_f(e, funcs...);})) {;}
+	};
 
 	namespace simpl {
 		// Collect things that are distributive, in the form of ba+ca = (b+c)a
